@@ -11,6 +11,7 @@ void initDisplay() {
   Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
   oledReady = display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS);
   if (oledReady) {
+    display.setRotation(2);  // Rotate OLED 180 degrees
     display.clearDisplay();
     display.display();
   }
