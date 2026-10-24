@@ -4,55 +4,50 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
 
-static bool playHeldDuringBoot() {
-  // TTP223 modules can take a short moment to stabilize after power-up.
-  // Sample over a window instead of reading the pin only once.
-  showStatus("Wi-Fi setup", "Hold Play to reset");
-  const unsigned long started = millis();
-  while (millis() - started < 1800) {
-    if (digitalRead(PIN_PLAY) == HIGH) {
-      Serial.println("Wi-Fi setup: Play touch detected at boot");
-      return true;
-    }
-    delay(20);
-  }
-  Serial.println("Wi-Fi setup: no Play touch detected at boot");
-  return false;
-}
-
 void setupWiFi() {
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+
+  // First try credentials saved in ESP32 NVS. If they are missing or fail,
+  // automatically open the setup hotspot without requiring a button press.
+  showStatus("Connecting Wi-Fi", "Checking saved network...");
+  Serial.println("Wi-Fi: trying saved credentials");
+  WiFi.begin();
+
+  const unsigned long connectStarted = millis();
+  while (WiFi.status() != WL_CONNECTED &&
+         millis() - connectStarted < 15000UL) {
+    delay(250);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("Wi-Fi: connected to ");
+    Serial.println(WiFi.SSID());
+    return;
+  }
+
+  Serial.println("Wi-Fi: saved network unavailable; opening setup portal");
+  showStatus("Wi-Fi unavailable", "Starting hotspot...");
+
   WiFiManager wifiManager;
   wifiManager.setDebugOutput(true);
+  wifiManager.setConnectTimeout(20);
   wifiManager.setConfigPortalTimeout(180);
-  wifiManager.setConnectTimeout(25);
 
-  const bool forceSetupPortal = playHeldDuringBoot();
-  if (forceSetupPortal) {
-    showStatus("Reset Wi-Fi", "Opening setup portal");
-    wifiManager.resetSettings();
-    delay(300);
+  // AP+STA allows the phone to configure Wi-Fi while the ESP32 scans/connects.
+  WiFi.mode(WIFI_AP_STA);
+  delay(250);
 
-    // Explicitly enable AP + station mode before starting the captive portal.
-    WiFi.mode(WIFI_AP_STA);
-    showStatus("Wi-Fi setup", "Starting hotspot...");
-    Serial.printf("Wi-Fi setup: starting AP '%s'\n", SETUP_AP_NAME);
-    if (!wifiManager.startConfigPortal(SETUP_AP_NAME, SETUP_AP_PASSWORD)) {
-      showStatus("Wi-Fi setup timeout", "Restart to retry");
-      delay(1500);
-      ESP.restart();
-      return;
-    }
-  } else {
-    showStatus("Wi-Fi setup", "Please wait...");
-    Serial.println("Wi-Fi setup: trying saved credentials");
-    if (!wifiManager.autoConnect(SETUP_AP_NAME, SETUP_AP_PASSWORD)) {
-      showStatus("Wi-Fi setup timeout", "Restart to retry");
-      delay(1500);
-      ESP.restart();
-      return;
-    }
+  if (!wifiManager.startConfigPortal(SETUP_AP_NAME, SETUP_AP_PASSWORD)) {
+    showStatus("Wi-Fi setup timeout", "Restart to retry");
+    Serial.println("Wi-Fi: setup portal timed out; restarting");
+    delay(1500);
+    ESP.restart();
+    return;
   }
+
+  Serial.print("Wi-Fi: portal finished, connected to ");
+  Serial.println(WiFi.SSID());
 }
 
 void maintainWiFi() {
