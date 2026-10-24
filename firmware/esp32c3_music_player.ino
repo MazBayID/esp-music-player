@@ -1,17 +1,20 @@
 /*
   ESP32-C3 SuperMini Network Music Player
-  Source: Python SimpleHTTPServer playlist at http://SERVER_IP:8080/playlist.txt
+  Wi-Fi setup: WiFiManager captive portal.
+  Hold the Play touch button while powering/resetting to forget saved Wi-Fi
+  and open the setup hotspot: Neo-Music-Setup (password: neo-music).
 
   Libraries (Arduino Library Manager):
   - ESP8266Audio by Earle F. Philhower
+  - WiFiManager by tzapu
   - Adafruit GFX Library
   - Adafruit SSD1306
 
-  Board: ESP32C3 Dev Module (or ESP32-C3 SuperMini board profile)
-  OLED assumption: SSD1306, 128x64, I2C address 0x3C
+  OLED: SSD1306 128x64, I2C address 0x3C
 */
 
 #include <WiFi.h>
+#include <WiFiManager.h>
 #include <HTTPClient.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -21,33 +24,28 @@
 #include "AudioGeneratorMP3.h"
 #include "AudioOutputI2S.h"
 
-// ===== USER CONFIGURATION =====
-const char* WIFI_SSID = "YOUR_WIFI_NAME";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-
-// Use the Android phone's LAN IP address, not 127.0.0.1.
+// Replace with the Android phone's LAN IP address.
 // Example: http://192.168.1.23:8080/playlist.txt
 const char* PLAYLIST_URL = "http://192.168.1.23:8080/playlist.txt";
+const char* SETUP_AP_NAME = "Neo-Music-Setup";
+const char* SETUP_AP_PASSWORD = "neo-music";
 
-// ===== PIN MAPPING =====
+// Pin mapping
 constexpr int PIN_I2S_BCLK = 1;
 constexpr int PIN_I2S_LRC  = 2;
 constexpr int PIN_I2S_DIN  = 5;
-
 constexpr int PIN_PREV = 4;
 constexpr int PIN_NEXT = 6;
 constexpr int PIN_PLAY = 7;
-
 constexpr int PIN_OLED_SCL = 20;
 constexpr int PIN_OLED_SDA = 21;
 
-// ===== DISPLAY =====
+// OLED SSD1306 128x64
 constexpr int OLED_WIDTH = 128;
 constexpr int OLED_HEIGHT = 64;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 
-// ===== PLAYER =====
 AudioGeneratorMP3* decoder = nullptr;
 AudioFileSourceHTTPStream* httpSource = nullptr;
 AudioFileSourceBuffer* bufferedSource = nullptr;
@@ -58,11 +56,11 @@ int playlistCount = 0;
 int currentTrack = 0;
 bool isPlaying = false;
 bool oledReady = false;
-
 unsigned long lastButtonTime = 0;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 220;
 
 void showStatus(const String& title, const String& line2 = "") {
+  Serial.println(title + (line2.length() ? " - " + line2 : ""));
   if (!oledReady) return;
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
@@ -108,7 +106,7 @@ void stopPlayback() {
 
 bool loadPlaylist() {
   if (WiFi.status() != WL_CONNECTED) {
-    showStatus("Wi-Fi disconnected", "Check network");
+    showStatus("Wi-Fi offline", "Check network");
     return false;
   }
 
@@ -116,7 +114,7 @@ bool loadPlaylist() {
   http.setConnectTimeout(8000);
   http.setTimeout(10000);
   if (!http.begin(PLAYLIST_URL)) {
-    showStatus("Playlist error", "Invalid URL");
+    showStatus("Playlist error", "Check server URL");
     return false;
   }
 
@@ -148,24 +146,19 @@ bool loadPlaylist() {
     showStatus("Playlist empty", "Check /out folder");
     return false;
   }
-
   if (currentTrack >= playlistCount) currentTrack = 0;
   showStatus("Playlist loaded", String(playlistCount) + " tracks");
   return true;
 }
 
 bool startTrack(int index) {
-  if (playlistCount == 0) {
-    if (!loadPlaylist()) return false;
-  }
-
+  if (playlistCount == 0 && !loadPlaylist()) return false;
   if (index < 0) index = playlistCount - 1;
   if (index >= playlistCount) index = 0;
   currentTrack = index;
   stopPlayback();
 
   showStatus("Connecting...", trackNameFromUrl(playlist[currentTrack]));
-
   httpSource = new AudioFileSourceHTTPStream(playlist[currentTrack].c_str());
   if (!httpSource) {
     showStatus("Memory error", "HTTP source");
@@ -183,23 +176,24 @@ bool startTrack(int index) {
     stopPlayback();
     return false;
   }
-
   isPlaying = true;
   showStatus("NOW PLAYING", trackNameFromUrl(playlist[currentTrack]));
   return true;
 }
 
 void togglePlayPause() {
+  // This first version stops playback; pressing again restarts the track.
   if (isPlaying && decoder) {
+    String name = trackNameFromUrl(playlist[currentTrack]);
     stopPlayback();
-    showStatus("PAUSED", trackNameFromUrl(playlist[currentTrack]));
+    showStatus("STOPPED", name);
   } else {
     startTrack(currentTrack);
   }
 }
 
 bool buttonPressed(int pin) {
-  // TTP223 modules normally output HIGH when touched.
+  // TTP223 normally outputs HIGH while touched.
   if (digitalRead(pin) != HIGH) return false;
   unsigned long now = millis();
   if (now - lastButtonTime < BUTTON_DEBOUNCE_MS) return false;
@@ -209,8 +203,7 @@ bool buttonPressed(int pin) {
 
 void setup() {
   Serial.begin(115200);
-  delay(200);
-
+  delay(250);
   pinMode(PIN_PREV, INPUT);
   pinMode(PIN_NEXT, INPUT);
   pinMode(PIN_PLAY, INPUT);
@@ -220,37 +213,46 @@ void setup() {
   if (oledReady) {
     display.clearDisplay();
     display.display();
-    showStatus("Starting...", "ESP32-C3");
   }
+  showStatus("Starting...", "ESP32-C3");
 
+  // Hold Play while powering on/resetting to erase stored Wi-Fi and
+  // force the setup portal. Release it after the OLED shows this message.
+  bool forceWifiSetup = (digitalRead(PIN_PLAY) == HIGH);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  showStatus("Connecting Wi-Fi", WIFI_SSID);
-  Serial.print("Connecting to Wi-Fi");
+  WiFiManager wifiManager;
+  wifiManager.setConfigPortalTimeout(180);
+  wifiManager.setConnectTimeout(25);
 
-  unsigned long started = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - started < 20000) {
-    delay(300);
-    Serial.print(".");
-  }
-  Serial.println();
-
-  if (WiFi.status() != WL_CONNECTED) {
-    showStatus("Wi-Fi failed", "Check SSID/pass");
-    Serial.println("Wi-Fi connection failed. Restart after checking credentials.");
-    return;
+  if (forceWifiSetup) {
+    showStatus("Reset Wi-Fi", "Opening setup portal");
+    wifiManager.resetSettings();
+    delay(700);
   }
 
+  showStatus("Wi-Fi setup", "Please wait...");
+  // If no credentials are saved or connection fails, create a temporary AP.
+  // Connect phone to Neo-Music-Setup (password neo-music), then visit
+  // http://192.168.4.1 if the captive portal does not open automatically.
+  if (!wifiManager.autoConnect(SETUP_AP_NAME, SETUP_AP_PASSWORD)) {
+    showStatus("Wi-Fi setup timeout", "Restart to retry");
+    delay(1500);
+    ESP.restart();
+  }
+
+  Serial.print("Connected Wi-Fi: ");
+  Serial.println(WiFi.SSID());
   Serial.print("ESP32 IP: ");
   Serial.println(WiFi.localIP());
   showStatus("Wi-Fi connected", WiFi.localIP().toString());
+  delay(500);
 
   if (loadPlaylist()) startTrack(0);
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
-    showStatus("Wi-Fi disconnected", "Reconnect...");
+    showStatus("Wi-Fi lost", "Reconnecting...");
     WiFi.reconnect();
     delay(500);
     return;
@@ -260,8 +262,7 @@ void loop() {
     if (!decoder->loop()) {
       decoder->stop();
       isPlaying = false;
-      // Move to the next song when the current stream ends.
-      startTrack((currentTrack + 1) % playlistCount);
+      if (playlistCount > 0) startTrack((currentTrack + 1) % playlistCount);
     }
   }
 
@@ -272,6 +273,5 @@ void loop() {
   } else if (buttonPressed(PIN_PLAY)) {
     togglePlayPause();
   }
-
   delay(1);
 }
