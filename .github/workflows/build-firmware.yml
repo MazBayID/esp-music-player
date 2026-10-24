@@ -1,19 +1,56 @@
-name: Build firmware
+name: Build ESP32-C3 firmware
+
 on:
   push:
     branches: [main]
+    paths:
+      - "firmware/**"
+      - ".github/workflows/build-firmware.yml"
+  pull_request:
+    paths:
+      - "firmware/**"
+      - ".github/workflows/build-firmware.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: arduino/setup-arduino-cli@v2
-      - run: arduino-cli config init && arduino-cli core update-index && arduino-cli core install esp32:esp32
-      - run: arduino-cli lib update-index && arduino-cli lib install ESP8266Audio WiFiManager 'Adafruit GFX Library' 'Adafruit SSD1306'
-      - run: mkdir -p build && arduino-cli compile --fqbn esp32:esp32:esp32c3 --output-dir build firmware/esp32c3_music_player.ino
-      - uses: actions/upload-artifact@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install ESP32 platform
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Install required libraries
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install ESP8266Audio
+          arduino-cli lib install WiFiManager
+          arduino-cli lib install "Adafruit GFX Library"
+          arduino-cli lib install "Adafruit SSD1306"
+
+      - name: Compile modular sketch for ESP32-C3
+        run: |
+          mkdir -p build
+          arduino-cli compile --fqbn esp32:esp32:esp32c3 --warnings all --output-dir build firmware/NeoMusicPlayer
+          find build -maxdepth 1 -type f -name '*.bin' -print
+          test -n "$(find build -maxdepth 1 -type f -name '*.bin' -print -quit)"
+
+      - name: Upload firmware BIN files
+        uses: actions/upload-artifact@v4
         with:
-          name: esp32-c3-firmware-bin
+          name: neo-music-player-esp32-c3-firmware
           path: build/*.bin
           if-no-files-found: error
+          retention-days: 30
