@@ -53,12 +53,12 @@ jobs:
           APP_BIN="$(find build -maxdepth 1 -type f -name '*.ino.bin' ! -name '*.bootloader.bin' ! -name '*.partitions.bin' ! -name '*.boot_app0.bin' -print -quit)"
           BOOTLOADER_BIN="$(find build -maxdepth 1 -type f -name '*.bootloader.bin' -print -quit)"
           PARTITIONS_BIN="$(find build -maxdepth 1 -type f -name '*.partitions.bin' -print -quit)"
-          BOOT_APP0_BIN="$(find build -maxdepth 1 -type f -name '*.boot_app0.bin' -print -quit)"
+          BOOT_APP0_BIN="$(find "$HOME/.arduino15/packages/esp32/hardware/esp32" -path '*/tools/partitions/boot_app0.bin' -print -quit)"
           test -n "$APP_BIN"
           test -n "$BOOTLOADER_BIN"
           test -n "$PARTITIONS_BIN"
           test -n "$BOOT_APP0_BIN"
-          python -m esptool --chip esp32c3 merge_bin -o build/neo_music_player_merged.bin --flash_mode dio --flash_size 4MB 0x0 "$BOOTLOADER_BIN" 0x8000 "$PARTITIONS_BIN" 0xe000 "$BOOT_APP0_BIN" 0x10000 "$APP_BIN"
+          python -m esptool --chip esp32c3 merge-bin -o build/neo_music_player_merged.bin --flash-mode dio --flash-size 4MB 0x0 "$BOOTLOADER_BIN" 0x8000 "$PARTITIONS_BIN" 0xe000 "$BOOT_APP0_BIN" 0x10000 "$APP_BIN"
           test -s build/neo_music_player_merged.bin
 
       - name: Upload single-file firmware BIN
