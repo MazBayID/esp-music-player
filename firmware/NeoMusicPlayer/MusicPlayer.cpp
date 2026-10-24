@@ -102,6 +102,11 @@ bool startTrack(int index) {
   return true;
 }
 
+void skipTrack(int direction) {
+  if (playlistCount == 0 && !loadPlaylist()) return;
+  startTrack(currentTrack + direction);
+}
+
 void togglePlayPause() {
   // Current behavior is stop/restart, not true pause/resume.
   if (isPlaying && decoder) {
