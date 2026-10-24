@@ -16,6 +16,6 @@ constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 220;
 constexpr size_t MAX_TRACKS = 100;
 
-static const char PLAYLIST_URL[] = "http://192.168.1.23:8080/playlist.txt";
+static const char PLAYLIST_URL[] = "http://192.168.1.155:8080/playlist.txt";
 static const char SETUP_AP_NAME[] = "Neo-Music-Setup";
 static const char SETUP_AP_PASSWORD[] = "neo-music";
