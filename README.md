@@ -2,9 +2,6 @@
 
 Firmware for streaming MP3 tracks from a Python HTTP server running in Termux on Android. Audio output uses a MAX98357A I2S amplifier, controls use three TTP223 touch modules, and status is shown on an SSD1306 I2C OLED (0.96-inch, 128×64).
 
-## Phone-only firmware build
-
-You do **not** need a PC, ArduinoDroid, or local Arduino library installation. GitHub Actions compiles the modular source and publishes firmware `.bin` files.
 
 1. Open the repository's **Actions** tab: https://github.com/MazBayID/esp-music-player/actions
 2. Select **Build ESP32-C3 firmware** and open the newest successful run.
