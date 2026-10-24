@@ -3,6 +3,7 @@
 #include "DisplayUI.h"
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <Preferences.h>
 #include "AudioFileSourceHTTPStream.h"
 #include "AudioFileSourceBuffer.h"
 #include "AudioGeneratorMP3.h"
@@ -16,6 +17,10 @@ static String playlist[MAX_TRACKS];
 static int playlistCount = 0;
 static int currentTrack = 0;
 static bool isPlaying = false;
+static bool repeatAll = true;
+static bool shuffleEnabledValue = false;
+static int shuffleOrder[MAX_TRACKS];
+static int shufflePosition = 0;
 
 static String trackNameFromUrl(const String& url) {
   int slash = url.lastIndexOf('/');
@@ -23,6 +28,78 @@ static String trackNameFromUrl(const String& url) {
   name.replace("%20", " ");
   if (name.length() > 20) name = name.substring(0, 20);
   return name;
+}
+
+static void persistSettings() {
+  Preferences preferences;
+  if (!preferences.begin("neo-player", false)) return;
+  preferences.putBool("repeat", repeatAll);
+  preferences.putBool("shuffle", shuffleEnabledValue);
+  preferences.end();
+}
+
+static void buildShuffleOrder(bool putCurrentFirst) {
+  for (int i = 0; i < playlistCount; ++i) shuffleOrder[i] = i;
+  for (int i = playlistCount - 1; i > 0; --i) {
+    int j = random(i + 1);
+    int temp = shuffleOrder[i];
+    shuffleOrder[i] = shuffleOrder[j];
+    shuffleOrder[j] = temp;
+  }
+
+  if (putCurrentFirst && playlistCount > 0) {
+    for (int i = 0; i < playlistCount; ++i) {
+      if (shuffleOrder[i] == currentTrack) {
+        int temp = shuffleOrder[0];
+        shuffleOrder[0] = shuffleOrder[i];
+        shuffleOrder[i] = temp;
+        break;
+      }
+    }
+  }
+  shufflePosition = 0;
+}
+
+static void syncShufflePosition() {
+  for (int i = 0; i < playlistCount; ++i) {
+    if (shuffleOrder[i] == currentTrack) {
+      shufflePosition = i;
+      return;
+    }
+  }
+}
+
+void initPlayerSettings() {
+  Preferences preferences;
+  if (preferences.begin("neo-player", true)) {
+    repeatAll = preferences.getBool("repeat", true);
+    shuffleEnabledValue = preferences.getBool("shuffle", false);
+    preferences.end();
+  }
+  randomSeed(micros());
+}
+
+bool repeatAllEnabled() {
+  return repeatAll;
+}
+
+bool shuffleEnabled() {
+  return shuffleEnabledValue;
+}
+
+void toggleRepeatAll() {
+  repeatAll = !repeatAll;
+  persistSettings();
+  Serial.print("Playback: repeat all ");
+  Serial.println(repeatAll ? "enabled" : "disabled");
+}
+
+void toggleShuffle() {
+  shuffleEnabledValue = !shuffleEnabledValue;
+  if (shuffleEnabledValue) buildShuffleOrder(true);
+  persistSettings();
+  Serial.print("Playback: shuffle ");
+  Serial.println(shuffleEnabledValue ? "enabled" : "disabled");
 }
 
 static void stopPlayback() {
@@ -74,6 +151,7 @@ bool loadPlaylist() {
     return false;
   }
   if (currentTrack >= playlistCount) currentTrack = 0;
+  buildShuffleOrder(true);
   showStatus("Playlist loaded", String(playlistCount) + " tracks");
   return true;
 }
@@ -83,6 +161,7 @@ bool startTrack(int index) {
   if (index < 0) index = playlistCount - 1;
   if (index >= playlistCount) index = 0;
   currentTrack = index;
+  if (shuffleEnabledValue) syncShufflePosition();
   stopPlayback();
   showStatus("Connecting...", trackNameFromUrl(playlist[currentTrack]));
   httpSource = new AudioFileSourceHTTPStream(playlist[currentTrack].c_str());
@@ -104,11 +183,33 @@ bool startTrack(int index) {
 
 void skipTrack(int direction) {
   if (playlistCount == 0 && !loadPlaylist()) return;
+
+  if (shuffleEnabledValue) {
+    int targetPosition = shufflePosition + direction;
+    if (targetPosition < 0 || targetPosition >= playlistCount) {
+      if (!repeatAll) return;
+      if (direction < 0) {
+        targetPosition = playlistCount - 1;
+      } else {
+        buildShuffleOrder(false);
+        if (playlistCount > 1 && shuffleOrder[0] == currentTrack) {
+          int temp = shuffleOrder[0];
+          shuffleOrder[0] = shuffleOrder[1];
+          shuffleOrder[1] = temp;
+        }
+        targetPosition = 0;
+      }
+    }
+    startTrack(shuffleOrder[targetPosition]);
+    return;
+  }
+
   startTrack(currentTrack + direction);
 }
 
 void togglePlayPause() {
-  // Current behavior is stop/restart, not true pause/resume.
+  // The current audio library does not expose safe seek/resume here:
+  // this control stops the stream, then starts the current track from its beginning.
   if (isPlaying && decoder) {
     String name = trackNameFromUrl(playlist[currentTrack]);
     stopPlayback();
@@ -123,6 +224,35 @@ void playerLoop() {
   if (!decoder->loop()) {
     decoder->stop();
     isPlaying = false;
-    if (playlistCount > 0) startTrack((currentTrack + 1) % playlistCount);
+
+    if (playlistCount <= 0) {
+      stopPlayback();
+      showStatus("Playback ended", "Playlist unavailable");
+      return;
+    }
+
+    if (shuffleEnabledValue) {
+      if (shufflePosition + 1 < playlistCount) {
+        startTrack(shuffleOrder[shufflePosition + 1]);
+      } else if (repeatAll) {
+        buildShuffleOrder(false);
+        if (playlistCount > 1 && shuffleOrder[0] == currentTrack) {
+          int temp = shuffleOrder[0];
+          shuffleOrder[0] = shuffleOrder[1];
+          shuffleOrder[1] = temp;
+        }
+        startTrack(shuffleOrder[0]);
+      } else {
+        stopPlayback();
+        showStatus("PLAYLIST END", "Touch PLAY to restart");
+      }
+    } else if (currentTrack + 1 < playlistCount) {
+      startTrack(currentTrack + 1);
+    } else if (repeatAll) {
+      startTrack(0);
+    } else {
+      stopPlayback();
+      showStatus("PLAYLIST END", "Touch PLAY to restart");
+    }
   }
 }
