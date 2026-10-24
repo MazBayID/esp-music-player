@@ -20,7 +20,7 @@ static bool buttonPressed(int pin) {
 }
 
 void handleControls() {
-  if (buttonPressed(PIN_PREV)) startTrack(-1);
-  else if (buttonPressed(PIN_NEXT)) startTrack(999999);
+  if (buttonPressed(PIN_PREV)) skipTrack(-1);
+  else if (buttonPressed(PIN_NEXT)) skipTrack(1);
   else if (buttonPressed(PIN_PLAY)) togglePlayPause();
 }
