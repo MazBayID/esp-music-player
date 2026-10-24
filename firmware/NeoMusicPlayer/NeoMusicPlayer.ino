@@ -8,6 +8,7 @@
 
 void setup() {
   Serial.begin(115200);
+  WiFi.setTxPower(WIFI_POWER_10dBm);
   delay(250);
   initControls();
   initDisplay();
