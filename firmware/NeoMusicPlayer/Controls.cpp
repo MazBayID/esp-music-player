@@ -110,7 +110,7 @@ static void processButton(int pin, ButtonState& state, int action, bool supports
     const bool wasLongPress = state.longHandled;
     state.down = false;
     state.longHandled = false;
-    if (!wasLongPress && duration >= BUTTON_DEBOUNCE_MS)
+    if (!wasLongPress && duration >= BUTTON_MIN_PRESS_MS)
       dispatchShortPress(action);
   }
 }
