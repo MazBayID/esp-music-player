@@ -11,6 +11,7 @@ void setup() {
   delay(250);
   initControls();
   initDisplay();
+  initPlayerSettings();
   showStatus("Starting...", "ESP32-C3");
   setupWiFi();
 

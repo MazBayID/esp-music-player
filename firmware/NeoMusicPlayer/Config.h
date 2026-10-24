@@ -14,6 +14,8 @@ constexpr int OLED_WIDTH = 128;
 constexpr int OLED_HEIGHT = 64;
 constexpr uint8_t OLED_ADDRESS = 0x3C;
 constexpr unsigned long BUTTON_DEBOUNCE_MS = 220;
+constexpr unsigned long BUTTON_MIN_PRESS_MS = 35;
+constexpr unsigned long BUTTON_LONG_PRESS_MS = 800;
 constexpr size_t MAX_TRACKS = 100;
 
 static const char PLAYLIST_URL[] = "http://192.168.1.155:8080/playlist.txt";

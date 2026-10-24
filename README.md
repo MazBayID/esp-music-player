@@ -23,7 +23,7 @@ The modular sketch used by the workflow is in `firmware/NeoMusicPlayer/`. It is 
 | MAX98357A | DIN | GPIO 5 |
 | TTP223 | Previous | GPIO 4 |
 | TTP223 | Next | GPIO 6 |
-| TTP223 | Play / stop | GPIO 7 |
+| TTP223 | Play / stop / menu | GPIO 7 |
 | OLED SSD1306 | SCL | GPIO 20 |
 | OLED SSD1306 | SDA | GPIO 21 |
 
@@ -40,6 +40,23 @@ Connect your Android phone to the setup access point, open the setup page, selec
 
 To change the saved Wi-Fi later, hold the Play touch sensor (GPIO 7) while resetting or powering on the ESP32, then release it when the OLED displays the setup status. This clears saved Wi-Fi credentials and reopens the setup portal.
 
+## Controls and OLED menu
+
+- Tap Previous (GPIO 4): previous track.
+- Tap Next (GPIO 6): next track.
+- Tap Play (GPIO 7): stop the current stream; tap again to restart that track from the beginning.
+- Hold Play for about 0.8 seconds: open or close the OLED control menu.
+- In the menu, Previous/Next moves the selection and Play selects the highlighted item.
+
+Menu options:
+- **Back to player** — close the menu without intentionally stopping playback.
+- **Repeat all** — on/off; when off, sequential playback stops at the end of the playlist.
+- **Shuffle** — plays tracks in a shuffled order without repeating a track until the current shuffle cycle is exhausted.
+- **Reload playlist** — fetch the latest playlist from the Termux server.
+- **Wi-Fi status** — show the current connection status or ESP32 IP.
+
+Repeat and shuffle settings are stored in ESP32 NVS and survive a restart. The Play action is still stop/restart, not true pause/resume; this build does not claim seek or pause support. OLED animations are intentionally avoided in this first menu batch to keep rendering lightweight while audio is decoding.
+
 ## Termux music server
 
 Keep MP3 files in the `out` folder beside `server.py`, then run:
@@ -51,14 +68,6 @@ python server.py
 The server should provide `http://PHONE_IP:8080/playlist.txt` and direct URLs to MP3 files. Update `PLAYLIST_URL` in `firmware/NeoMusicPlayer/Config.h` to use your Android phone's actual LAN IP address, then commit the change so GitHub Actions builds the updated firmware. Do not use `127.0.0.1`; the ESP32 needs the phone's LAN address. If the phone IP changes, update and rebuild.
 
 Some hotspots isolate clients or block access to the phone itself. If the ESP32 cannot fetch the playlist, check that both devices can reach each other on the local network.
-
-## Controls
-
-- Previous (GPIO 4): play the previous track.
-- Next (GPIO 6): play the next track.
-- Play (GPIO 7): stop the current stream; press again to restart that track from the beginning.
-
-The current Play behavior is stop/restart, not true pause/resume. The firmware decodes MP3 streams; WAV, FLAC, AAC, and other formats are not guaranteed to work.
 
 ## Build status
 

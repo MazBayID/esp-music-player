@@ -32,3 +32,37 @@ void showStatus(const String& title, const String& line2) {
   display.println(line2);
   display.display();
 }
+
+void showMenu(int selectedItem, bool repeatAll, bool shuffleEnabled) {
+  if (!oledReady) return;
+
+  String items[5] = {
+    "Back to player",
+    String("Repeat all: ") + (repeatAll ? "ON" : "OFF"),
+    String("Shuffle: ") + (shuffleEnabled ? "ON" : "OFF"),
+    "Reload playlist",
+    "Wi-Fi status"
+  };
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("NEO / CONTROL MENU");
+  display.drawLine(0, 10, 127, 10, SSD1306_WHITE);
+
+  for (int i = 0; i < 5; ++i) {
+    const int y = 12 + i * 10;
+    if (i == selectedItem) {
+      display.fillRect(0, y, OLED_WIDTH, 10, SSD1306_WHITE);
+      display.setTextColor(SSD1306_BLACK);
+    } else {
+      display.setTextColor(SSD1306_WHITE);
+    }
+    display.setCursor(3, y + 1);
+    display.print(items[i]);
+  }
+
+  display.setTextColor(SSD1306_WHITE);
+  display.display();
+}
