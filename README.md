@@ -9,7 +9,8 @@ You do **not** need a PC, ArduinoDroid, or local Arduino library installation. G
 1. Open the repository's **Actions** tab: https://github.com/MazBayID/esp-music-player/actions
 2. Select **Build ESP32-C3 firmware** and open the newest successful run.
 3. In **Artifacts**, download `neo-music-player-esp32-c3-firmware`.
-4. Extract the ZIP on Android. Use an ESP32 flashing app/tool that supports ESP32-C3 and the generated binary layout. If the artifact contains multiple BIN files, do not flash an arbitrary one as though it were the complete image; follow the firmware flashing guide added alongside the build output.
+4. Extract the ZIP on Android. It contains the single merged file `neo_music_player_merged.bin`.
+5. In an ESP32-C3 flashing tool, select that file and flash it at address `0x0` (0). Choose the ESP32-C3 chip/target when the tool asks.
 
 The modular sketch used by the workflow is in `firmware/NeoMusicPlayer/`. It is split into configuration, OLED, Wi-Fi setup, music streaming, and touch-control modules. The older `firmware/esp32c3_music_player.ino` is retained as a legacy reference; it is **not** the workflow's build input.
 
@@ -61,4 +62,4 @@ The current Play behavior is stop/restart, not true pause/resume. The firmware d
 
 ## Build status
 
-GitHub Actions is configured to compile the modular sketch for the ESP32-C3 and upload the generated BIN files as a 30-day artifact. A successful CI build confirms compilation only; actual audio, OLED, Wi-Fi, and touch behavior still require testing on the physical hardware.
+GitHub Actions is configured to compile the modular sketch for the ESP32-C3, merge the bootloader, partition table, boot_app0, and application into one `neo_music_player_merged.bin`, and upload it as a 30-day artifact. A successful CI build confirms compilation only; actual audio, OLED, Wi-Fi, and touch behavior still require testing on the physical hardware.
