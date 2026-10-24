@@ -14,7 +14,7 @@ void setup() {
   initDisplay();
   showStatus("Starting...", "ESP32-C3");
   setupWiFi();
-  // ESP-IDF uses quarter-dBm units: 40 = 10 dBm requested.
+  // ESP-IDF uses quarter-dBm units; request 10 dBm (hardware maps this to 8.5 dBm).
   esp_wifi_set_max_tx_power(40);
   Serial.print("Connected Wi-Fi: ");
   Serial.println(WiFi.SSID());
