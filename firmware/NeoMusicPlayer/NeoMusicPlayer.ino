@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include "Config.h"
 #include "DisplayUI.h"
 #include "WiFiSetup.h"
@@ -8,12 +9,13 @@
 
 void setup() {
   Serial.begin(115200);
-  WiFi.setTxPower(WIFI_POWER_10dBm);
   delay(250);
   initControls();
   initDisplay();
   showStatus("Starting...", "ESP32-C3");
   setupWiFi();
+  // ESP-IDF uses quarter-dBm units: 40 = 10 dBm requested.
+  esp_wifi_set_max_tx_power(40);
   Serial.print("Connected Wi-Fi: ");
   Serial.println(WiFi.SSID());
   Serial.print("ESP32 IP: ");
