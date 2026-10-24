@@ -43,7 +43,7 @@ jobs:
       - name: Compile modular sketch for ESP32-C3
         run: |
           mkdir -p build
-          arduino-cli compile --fqbn esp32:esp32:esp32c3 --warnings all --export-binaries --output-dir build firmware/NeoMusicPlayer
+          arduino-cli compile --fqbn esp32:esp32:esp32c3 --board-options PartitionScheme=huge_app --warnings all --export-binaries --output-dir build firmware/NeoMusicPlayer
           find build -maxdepth 1 -type f -name '*.bin' -print
           test -n "$(find build -maxdepth 1 -type f -name '*.bin' -print -quit)"
 
